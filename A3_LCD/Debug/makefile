@@ -8,10 +8,10 @@ GEN_OPTS__FLAG :=
 GEN_CMDS__FLAG := 
 
 ORDERED_OBJS += \
-"./delay.obj" \
 "./main.obj" \
 "./startup_msp432p401r_ccs.obj" \
 "./system_msp432p401r.obj" \
+"./myLibs/delay.obj" \
 "../msp432p401r.cmd" \
 $(GEN_CMDS__FLAG) \
 -llibc.a \
@@ -24,7 +24,9 @@ RMDIR := rm -rf
 # All of the sources participating in the build are defined here
 -include sources.mk
 -include subdir_vars.mk
+-include myLibs/subdir_vars.mk
 -include subdir_rules.mk
+-include myLibs/subdir_rules.mk
 -include objects.mk
 
 ifneq ($(MAKECMDGOALS),clean)
@@ -121,42 +123,42 @@ endif
 
 # Add inputs and outputs from these tool invocations to the build variables 
 EXE_OUTPUTS += \
-A2_testing.out \
+A3_LCD.out \
 
 EXE_OUTPUTS__QUOTED += \
-"A2_testing.out" \
+"A3_LCD.out" \
 
 BIN_OUTPUTS += \
-A2_testing.hex \
+A3_LCD.hex \
 
 BIN_OUTPUTS__QUOTED += \
-"A2_testing.hex" \
+"A3_LCD.hex" \
 
 
 # All Target
 all: $(OBJS) $(CMD_SRCS) $(GEN_CMDS)
-	@$(MAKE) --no-print-directory -Onone "A2_testing.out"
+	@$(MAKE) --no-print-directory -Onone "A3_LCD.out"
 
 # Tool invocations
-A2_testing.out: $(OBJS) $(CMD_SRCS) $(GEN_CMDS)
+A3_LCD.out: $(OBJS) $(CMD_SRCS) $(GEN_CMDS)
 	@echo 'Building target: "$@"'
 	@echo 'Invoking: ARM Linker'
-	"/opt/ccstudio/ccsv7/tools/compiler/ti-cgt-arm_16.9.6.LTS/bin/armcl" -mv7M4 --code_state=16 --float_support=FPv4SPD16 -me --advice:power=all --define=__MSP432P401R__ --define=ccs -g --gcc --diag_warning=225 --diag_wrap=off --display_error_number --abi=eabi -z -m"A2_testing.map" --heap_size=1024 --stack_size=512 -i"/opt/ccstudio/ccsv7/ccs_base/arm/include" -i"/opt/ccstudio/ccsv7/tools/compiler/ti-cgt-arm_16.9.6.LTS/lib" -i"/opt/ccstudio/ccsv7/tools/compiler/ti-cgt-arm_16.9.6.LTS/include" --reread_libs --diag_wrap=off --display_error_number --warn_sections --xml_link_info="A2_testing_linkInfo.xml" --rom_model -o "A2_testing.out" $(ORDERED_OBJS)
+	"/opt/ccstudio/ccsv7/tools/compiler/ti-cgt-arm_16.9.6.LTS/bin/armcl" -mv7M4 --code_state=16 --float_support=FPv4SPD16 -me --advice:power=all --define=__MSP432P401R__ --define=ccs -g --gcc --diag_warning=225 --diag_wrap=off --display_error_number --abi=eabi -z -m"A3_LCD.map" --heap_size=1024 --stack_size=512 -i"/opt/ccstudio/ccsv7/ccs_base/arm/include" -i"/opt/ccstudio/ccsv7/tools/compiler/ti-cgt-arm_16.9.6.LTS/lib" -i"/opt/ccstudio/ccsv7/tools/compiler/ti-cgt-arm_16.9.6.LTS/include" --reread_libs --diag_wrap=off --display_error_number --warn_sections --xml_link_info="A3_LCD_linkInfo.xml" --rom_model -o "A3_LCD.out" $(ORDERED_OBJS)
 	@echo 'Finished building target: "$@"'
 	@echo ' '
 
-A2_testing.hex: $(EXE_OUTPUTS)
+A3_LCD.hex: $(EXE_OUTPUTS)
 	@echo 'Building files: $(strip $(EXE_OUTPUTS__QUOTED))'
 	@echo 'Invoking: ARM Hex Utility'
-	"/opt/ccstudio/ccsv7/tools/compiler/ti-cgt-arm_16.9.6.LTS/bin/armhex" --memwidth=8 --romwidth=8 -o "A2_testing.hex" $(EXE_OUTPUTS__QUOTED)
+	"/opt/ccstudio/ccsv7/tools/compiler/ti-cgt-arm_16.9.6.LTS/bin/armhex" --memwidth=8 --romwidth=8 -o "A3_LCD.hex" $(EXE_OUTPUTS__QUOTED)
 	@echo 'Finished building: $(strip $(EXE_OUTPUTS__QUOTED))'
 	@echo ' '
 
 # Other Targets
 clean:
 	-$(RM) $(BIN_OUTPUTS__QUOTED)$(EXE_OUTPUTS__QUOTED)
-	-$(RM) "delay.obj" "main.obj" "startup_msp432p401r_ccs.obj" "system_msp432p401r.obj" 
-	-$(RM) "delay.d" "main.d" "startup_msp432p401r_ccs.d" "system_msp432p401r.d" 
+	-$(RM) "main.obj" "startup_msp432p401r_ccs.obj" "system_msp432p401r.obj" "myLibs/delay.obj" 
+	-$(RM) "main.d" "startup_msp432p401r_ccs.d" "system_msp432p401r.d" "myLibs/delay.d" 
 	-@echo 'Finished clean'
 	-@echo ' '
 
