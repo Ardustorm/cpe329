@@ -2,7 +2,7 @@
 #include "myLibs/lcd.h"
 #include "myLibs/delay.h"
 
-#include "keypad.h"
+#include "myLibs/keypad.h"
 /**
  * main.c
  */
@@ -23,16 +23,6 @@ void main(void)
       Write_char_LCD( 0, key);
       key = getKey();
       delay_ms(100,FREQ_3MHz);
-   /*    if( (key = scanKeypad()) != -1) { */
-   /* 	 Write_char_LCD( i, key); */
-   /* 	 i++; */
-   /*    } */
-   /*    if(i == 15) { */
-   /* 	 Clear_LCD(); */
-   /* 	 i=0; */
-   /*    } */
-   /*    delay_ms(200, FREQ_3MHz); */
    }
-
 	
 }
