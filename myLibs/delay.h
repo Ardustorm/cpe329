@@ -10,4 +10,7 @@
 
 void delay_us(int time, int freq);
 void delay_ms(int time, int freq);
+
+void set_DCO(int freq);
+
 #endif
