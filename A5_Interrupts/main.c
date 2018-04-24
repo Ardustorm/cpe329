@@ -67,6 +67,8 @@
 
 int state = 1;
 
+int count = 0;
+
 int main(void) {
    WDT_A->CTL = WDT_A_CTL_PW |             // Stop WDT
       WDT_A_CTL_HOLD;
@@ -119,8 +121,14 @@ int main(void) {
 void TA0_0_IRQHandler(void) {
    TIMER_A0->CCTL[0] &= ~TIMER_A_CCTLN_CCIFG;
 
-   P1->OUT ^= BIT0;
-   TIMER_A0->CCR[0] += 1831;              // Add Offset to TACCR0
+
+   if(count==8) {
+      count=0;
+      P1->OUT ^= BIT0;
+   }
+   /* TIMER_A0->CCR[0] += 1831;              // Add Offset to TACCR0 */
+   TIMER_A0->CCR[0] += 29297;              // Add Offset to TACCR0
+   count++;
 }
 
 // Timer A0 interrupt service routine
