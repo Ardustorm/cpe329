@@ -4,36 +4,11 @@
 #include "myLibs/keypad.h"
 
 /**
- * main.c
+ * Written by Luke Thompson and John Thomsen
  */
 
-/* int mapping[] = { '1', '4', '7', '*', */
-/* 		  '2', '5', '8', '0', */
-/* 		  '3', '6', '9', '#' }; */
+#include "password.h"
 
-#define ONE    (0x1 <<  0)
-#define FOUR   (0x1 <<  1)
-#define SEVEN  (0x1 <<  2)
-#define STAR   (0x1 <<  3)
-
-#define TWO    (0x1 <<  4)
-#define FIVE   (0x1 <<  5)
-#define EIGHT  (0x1 <<  6)
-#define ZERO   (0x1 <<  7)
-
-#define THREE  (0x1 <<  8)
-#define SIX    (0x1 <<  9)
-#define NINE   (0x1 << 10)
-#define POUND  (0x1 << 11)
-
-#define COMBO0 ONE | TWO
-#define COMBO1 FIVE | SIX
-#define COMBO2 SEVEN | EIGHT | NINE
-#define COMBO3 EIGHT | ZERO
-
-#define PASS_LEN 4
-
-int PASSWORD_KEY[PASS_LEN] = { COMBO0, COMBO1, COMBO2, COMBO3};
 
 void main(void)
 {
@@ -41,11 +16,11 @@ void main(void)
    int password_entered[PASS_LEN];
    
    LCD_Init();
+
    keypadInit();
-   Clear_LCD();
+
    displayLocked();
    
-   int key = '-';
 
 
    int i = 0;
@@ -71,6 +46,14 @@ void main(void)
 	 displayLocked();
 	 i=0;
       }
+
+      if( password_entered[i-1] == POUND) {
+	 i-=2;
+	 i = i>0? i : 0;
+	 Write_char_LCD(26+i+1, ' ');
+	 Write_char_LCD(26+i, ' ');
+
+      }
       
 
       
@@ -83,6 +66,10 @@ void main(void)
 	 if(checkPassword( password_entered )) {
 	    Clear_LCD();
 	    Write_str_LCD( 0, "HELLO WORLD");
+
+	    getKeyCombo();	/* wait till keypressed */
+	    displayLocked();	    
+	    
 	 } else {
 	    Clear_LCD();
 	    Write_str_LCD( 0, "Key Incorrect");
@@ -90,9 +77,6 @@ void main(void)
 	    displayLocked();
 	 }
       }
-
-      
-     
 
    
       delay_ms(50,FREQ_3MHz);
