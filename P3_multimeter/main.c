@@ -8,17 +8,19 @@
  * main.c
  */
 
-#define DC_LOCATION 35
-#define RMS_LOCATION 49
-#define PP_LOCATION 66
-#define FREQ_LOCATION 91
-
+#define DCOFFSET_LOCATION 42
+#define RMS_LOCATION 56
+#define PP_LOCATION 73
+#define FREQ_LOCATION 98
+#define DC_LOCATION 121
 volatile uint32_t period = 95;
 volatile uint32_t dcSum  = 0;
+volatile uint32_t dcOffsetSum  = 0;
 volatile uint64_t rmsSum = 0;
 volatile uint16_t vMin   = 0;
 volatile uint16_t vMax   = 0;
 volatile uint32_t numOfSamples = 0;
+volatile uint32_t numOfDCSamples = 0;
 volatile char * buf;
 
 void insertFloat(char * loc, float val) {
@@ -65,33 +67,26 @@ void edgeTriggerInit() {
 void TA0_N_IRQHandler(void) {
    static uint16_t lastClk=0;
 
-   /*       
    if(TIMER_A0->CCTL[0] & TIMER_A_CCTLN_CCIFG) {
-      insertFloat(buf + DC_LOCATION,  dcSum/numOfSamples/4094.0 *3.3);
-      insertFloat(buf + RMS_LOCATION, sqrt(rmsSum/numOfSamples)/4094.0*3.3);
-      insertFloat(buf + PP_LOCATION, (vMax-vMin)/4094.0*3.3);
-
-      numOfSamples=0;
+      insertFloat(buf + DC_LOCATION, dcSum/numOfDCSamples/4094.0 *3.3);
       dcSum=0;
-      rmsSum = 0;
-      vMax=0;
-      vMin=4094;
+      numOfDCSamples=0;
 
-
-      TIMER_A0->CCR[0] += 43;
-   } else */ {
+      TIMER_A0->CCTL[0] &= ~TIMER_A_CCTLN_CCIFG;
+      TIMER_A0->CCR[0] += 33;
+   } else  {
 
       if(TIMER_A0->CCR[2] > lastClk) {
 	 period = TIMER_A0->CCR[2]-lastClk;
       }
       lastClk= TIMER_A0->CCR[2];
 
-      insertFloat(buf + DC_LOCATION,  dcSum/numOfSamples/4094.0 *3.3);
+      insertFloat(buf + DCOFFSET_LOCATION,  dcOffsetSum/numOfSamples/4094.0 *3.3);
       insertFloat(buf + RMS_LOCATION, sqrt(rmsSum/numOfSamples)/4094.0*3.3);
       insertFloat(buf + PP_LOCATION, (vMax-vMin)/4094.0*3.3);
 
       numOfSamples=0;
-      dcSum=0;
+      dcOffsetSum=0;
       rmsSum = 0;
       vMax=0;
       vMin=4094;
@@ -126,8 +121,10 @@ void adcInit() {
 void ADC14_IRQHandler(void) {
    /* updates sample and new sample flag */
    numOfSamples++;
+   numOfDCSamples++;
    /* sample = ADC14->MEM[0]; */
    dcSum  += ADC14->MEM[0];
+   dcOffsetSum  += ADC14->MEM[0];
    rmsSum += ADC14->MEM[0] * ADC14->MEM[0];
    vMin = MIN(vMin, ADC14->MEM[0]);
    vMax = MAX(vMax, ADC14->MEM[0]);
@@ -138,7 +135,7 @@ void ADC14_IRQHandler(void) {
 void main(void)
 {
    WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;		// stop watchdog timer
-   set_DCO(FREQ_12MHz);
+   set_DCO(FREQ_48MHz);
    uartInit();
    edgeTriggerInit();
    adcInit();
@@ -148,22 +145,34 @@ void main(void)
    ADC14->CTL0 |= ADC14_CTL0_ENC | ADC14_CTL0_SC;
    buf = malloc(500);
    strcpy(buf,
-	  LOC(5,22) "DC"      LOC(5,42) "RMS"        LOC(5,62)"PP" /* ends at 31 */
+	  LOC(5,22) "DC OFFSET" LOC(5,42) "RMS"        LOC(5,62)"PP" /* ends at 31 */
 	  LOC(6,20) "_#___ V" LOC(6,40) "_#___ Vrms" LOC(6,60)"_#___ Vpp"
 	  LOC(5,5) "FREQ"     
-	  LOC(6,4) "____  kHz"	  
+	  LOC(6,4) "____  kHz"
+
+	  LOC(8,5) "DC"     
+	  LOC(9,4) "____  Vdc"
+	  
 	  );
    setOutput(buf);
 
    float f = 3.219;
+   int arrayStart=0;
    while(1) {
       int i;
-      for(i = 0; i < 50000; i++);
+      for(i = 0; i < 5000; i++);
       /* insertFloat(buf + DC_LOCATION, dcSum/4094.0/numOfSamples *3.3); */
       /* numOfSamples=0; */
       /* dcSum=0; */
       /* insertFloat(buf + RMS_LOCATION, f); */
       /* insertFloat(buf + PP_LOCATION, f); */
+       /* if (EUSCI_A0->IFG & EUSCI_A_IFG_TXIFG) { */
+       /* 	  EUSCI_A0->TXBUF = buf[arrayStart++]; */
+       /* 	  if(buf[arrayStart] == '\0') { */
+       /* 	     arrayStart = 0; */
+       /* 	  } */
+       /* } */
+ 
    }
 }
 
