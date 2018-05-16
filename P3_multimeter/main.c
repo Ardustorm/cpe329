@@ -1,40 +1,53 @@
 #include "msp.h"
 #include "myLibs/delay.h"
 #include "myLibs/uart.h"
+#include <math.h>
+#define MAX(a,b) (a>b)? a:b
+#define MIN(a,b) (a<b)? a:b
 /**
  * main.c
  */
 
-volatile uint32_t period = 0;
-void main(void)
-{
-   WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;		// stop watchdog timer
-   set_DCO(FREQ_48MHz);
-   uartInit();
+#define DC_LOCATION 35
+#define RMS_LOCATION 49
+#define PP_LOCATION 66
+#define FREQ_LOCATION 91
+
+volatile uint32_t period = 95;
+volatile uint32_t dcSum  = 0;
+volatile uint64_t rmsSum = 0;
+volatile uint16_t vMin   = 0;
+volatile uint16_t vMax   = 0;
+volatile uint32_t numOfSamples = 0;
+volatile char * buf;
+
+void insertFloat(char * loc, float val) {
+   /* currently, this function must take a float less than 10
+      and will only print out 3 decimal places*/
    int i;
-   for(i = 0; i < 30000; i++);
 
-   volatile char * buf = malloc(500);
-   strcpy(buf,
-      LOC(5,22) "DC"      LOC(5,42) "RMS"        LOC(5,62)"PP" /* ends at 31 */
-      LOC(6,20) "0.000 V" LOC(6,40) "0.000 Vrms" LOC(6,60)"0.000 Vpp"
+   for(i=4; i>0; i-- ) {
 
-	  );
-   setOutput(buf);
-   while(1) {
-      int i;
-      for(i = 0; i < 90000; i++);
-      buf[35]++;
+      *(loc++) = '0' + (int)(val);
+      val -= (int)val;
+      val *= 10;
 
-
+      if(i==4) {		/* print decimal */
+	 *(loc++) = '.';
+      }
    }
 }
 
-/******************** BELOW NOT USED!!!  ********************/
+
+
 void edgeTriggerInit() {
    P2->SEL0 |= BIT5;                       // TA0.CCI2A input capture pin, second function
    P2->DIR &= ~BIT5;
 
+   /* setup for 1ms timer */
+   TIMER_A0->CCTL[0] = TIMER_A_CCTLN_CCIE; // TACCR0 interrupt enabled
+   TIMER_A0->CCR[0] = 32763;
+   
    // Timer0_A3 Setup
    TIMER_A0->CCTL[2] = TIMER_A_CCTLN_CM_1 | // Capture rising edge,
       TIMER_A_CCTLN_CCIS_0 |          // Use CCI2A=ACLK,
@@ -45,13 +58,116 @@ void edgeTriggerInit() {
    TIMER_A0->CTL |= TIMER_A_CTL_TASSEL_1 | // Use ACLK as clock source,
       TIMER_A_CTL_MC_2 |              // Start timer in continuous mode
       TIMER_A_CTL_CLR;                // clear TA0R
+
+   NVIC->ISER[0] = 1 << ((TA0_N_IRQn) & 31);
 }
 
 void TA0_N_IRQHandler(void) {
-   /* TODO: improve response time */
-   /* perform exponential averaging */
-   period += TIMER_A0->CCR[2];
-   period /= 2;
-   // Clear the interrupt flag
-   TIMER_A0->CCTL[2] &= ~(TIMER_A_CCTLN_CCIFG);
+   static uint16_t lastClk=0;
+
+   /*       
+   if(TIMER_A0->CCTL[0] & TIMER_A_CCTLN_CCIFG) {
+      insertFloat(buf + DC_LOCATION,  dcSum/numOfSamples/4094.0 *3.3);
+      insertFloat(buf + RMS_LOCATION, sqrt(rmsSum/numOfSamples)/4094.0*3.3);
+      insertFloat(buf + PP_LOCATION, (vMax-vMin)/4094.0*3.3);
+
+      numOfSamples=0;
+      dcSum=0;
+      rmsSum = 0;
+      vMax=0;
+      vMin=4094;
+
+
+      TIMER_A0->CCR[0] += 43;
+   } else */ {
+
+      if(TIMER_A0->CCR[2] > lastClk) {
+	 period = TIMER_A0->CCR[2]-lastClk;
+      }
+      lastClk= TIMER_A0->CCR[2];
+
+      insertFloat(buf + DC_LOCATION,  dcSum/numOfSamples/4094.0 *3.3);
+      insertFloat(buf + RMS_LOCATION, sqrt(rmsSum/numOfSamples)/4094.0*3.3);
+      insertFloat(buf + PP_LOCATION, (vMax-vMin)/4094.0*3.3);
+
+      numOfSamples=0;
+      dcSum=0;
+      rmsSum = 0;
+      vMax=0;
+      vMin=4094;
+
+      /* insertFloat(buf + DC_LOCATION,  dcSum/numOfSamples/4094.0 *3.3); */
+      insertFloat(buf +FREQ_LOCATION, 32.768/period);
+         
+      // Clear the interrupt flag
+      TIMER_A0->CCTL[2] &= ~(TIMER_A_CCTLN_CCIFG);
+      
+   }
 }
+
+void adcInit() {
+   // GPIO Setup
+   P5->SEL1 |= BIT4;                       // Configure P5.4 for ADC
+   P5->SEL0 |= BIT4;
+
+
+   // Enable ADC interrupt in NVIC module
+   NVIC->ISER[0] = 1 << ((ADC14_IRQn) & 31);
+
+   // Sampling time, S&H=16, ADC14 on
+   ADC14->CTL0 = ADC14_CTL0_SHT0_2 | ADC14_CTL0_SHP | ADC14_CTL0_ON;
+   ADC14->CTL1 = ADC14_CTL1_RES_2;         // Use sampling timer, 12-bit conversion results
+
+   ADC14->MCTL[0] |= ADC14_MCTLN_INCH_1;   // A1 ADC input select; Vref=AVCC
+   ADC14->IER0 |= ADC14_IER0_IE0;          // Enable ADC conv complete interrupt
+}
+
+// ADC14 interrupt service routine
+void ADC14_IRQHandler(void) {
+   /* updates sample and new sample flag */
+   numOfSamples++;
+   /* sample = ADC14->MEM[0]; */
+   dcSum  += ADC14->MEM[0];
+   rmsSum += ADC14->MEM[0] * ADC14->MEM[0];
+   vMin = MIN(vMin, ADC14->MEM[0]);
+   vMax = MAX(vMax, ADC14->MEM[0]);
+   ADC14->CTL0 |= ADC14_CTL0_ENC | ADC14_CTL0_SC;
+ }
+
+
+void main(void)
+{
+   WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;		// stop watchdog timer
+   set_DCO(FREQ_12MHz);
+   uartInit();
+   edgeTriggerInit();
+   adcInit();
+   
+   int i;
+   for(i = 0; i < 30000; i++);
+   ADC14->CTL0 |= ADC14_CTL0_ENC | ADC14_CTL0_SC;
+   buf = malloc(500);
+   strcpy(buf,
+	  LOC(5,22) "DC"      LOC(5,42) "RMS"        LOC(5,62)"PP" /* ends at 31 */
+	  LOC(6,20) "_#___ V" LOC(6,40) "_#___ Vrms" LOC(6,60)"_#___ Vpp"
+	  LOC(5,5) "FREQ"     
+	  LOC(6,4) "____  kHz"	  
+	  );
+   setOutput(buf);
+
+   float f = 3.219;
+   while(1) {
+      int i;
+      for(i = 0; i < 50000; i++);
+      /* insertFloat(buf + DC_LOCATION, dcSum/4094.0/numOfSamples *3.3); */
+      /* numOfSamples=0; */
+      /* dcSum=0; */
+      /* insertFloat(buf + RMS_LOCATION, f); */
+      /* insertFloat(buf + PP_LOCATION, f); */
+   }
+}
+
+
+
+   
+
