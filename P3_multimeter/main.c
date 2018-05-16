@@ -13,6 +13,8 @@
 #define PP_LOCATION 73
 #define FREQ_LOCATION 98
 #define DC_LOCATION 121
+#define BAR1_LOCATION 137
+#define BARLEN 50
 volatile uint32_t period = 95;
 volatile uint32_t dcSum  = 0;
 volatile uint32_t dcOffsetSum  = 0;
@@ -85,6 +87,16 @@ void TA0_N_IRQHandler(void) {
       insertFloat(buf + RMS_LOCATION, sqrt(rmsSum/numOfSamples)/4094.0*3.3);
       insertFloat(buf + PP_LOCATION, (vMax-vMin)/4094.0*3.3);
 
+
+      /* BAR GRAPHS */
+      int bar1Len = dcOffsetSum/numOfSamples/4094.0 * BARLEN;
+      memset(buf + BAR1_LOCATION,         '#', bar1Len);
+      memset(buf + BAR1_LOCATION+bar1Len, ' ',  BARLEN - bar1Len);
+
+
+      /* memset(buf + BAR2_LOCATION,         '#', bar1Len); */
+      /* memset(buf + BAR2_LOCATION+bar1Len, ' ',  BARLEN - bar1Len); */
+      
       numOfSamples=0;
       dcOffsetSum=0;
       rmsSum = 0;
@@ -152,6 +164,8 @@ void main(void)
 
 	  LOC(8,5) "DC"     
 	  LOC(9,4) "____  Vdc"
+
+	  LOC(12,4) "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 	  
 	  );
    setOutput(buf);
