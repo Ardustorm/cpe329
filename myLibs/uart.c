@@ -87,11 +87,14 @@ void EUSCIA0_IRQHandler(void) {
    	 uartFlag = 1;
       }
    } else if (EUSCI_A0->IFG & EUSCI_A_IFG_TXIFG) {
+      EUSCI_A0->IFG &=~ EUSCI_A_IFG_TXIFG;
       /* finished sending */
-      EUSCI_A0->TXBUF = outArray[arrayStart++];
       if(outArray[arrayStart] == '\0') {
-      	 arrayStart = 0;
+	 arrayStart = 0;
+
       }
+
+      EUSCI_A0->TXBUF = outArray[arrayStart++];
       /* arrayStart = (arrayStart+1) % ARRAY_SIZE; */
    }
    

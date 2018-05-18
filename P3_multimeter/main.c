@@ -25,7 +25,17 @@ volatile uint16_t vMin   = 0;
 volatile uint16_t vMax   = 0;
 volatile uint32_t numOfSamples = 0;
 volatile uint32_t numOfDCSamples = 0;
+
+
+volatile uint32_t dcOffsetSumLast  = 0;
+volatile uint64_t rmsSumLast = 0;
+volatile uint16_t vMinLast   = 0;
+volatile uint16_t vMaxLast   = 0;
+volatile uint32_t numOfSamplesLast = 0;
+volatile uint32_t periodLast=0;
 volatile char * buf;
+
+
 
 void insertFloat(char * loc, float val) {
    /* currently, this function must take a float less than 10
@@ -109,28 +119,25 @@ void TA0_N_IRQHandler(void) {
    }
    lastClk= TIMER_A0->CCR[2];
 
-   insertFloat(buf + DCOFFSET_LOCATION,  dcOffsetSum/numOfSamples/4094.0 *3.3);
-   insertFloat(buf + RMS_LOCATION, sqrt(rmsSum/numOfSamples)/4094.0*3.3);
-   insertFloat(buf + PP_LOCATION, (vMax-vMin)/4094.0*3.3);
+   
+   numOfSamplesLast = numOfSamples;
+   dcOffsetSumLast  = dcOffsetSum;
+   rmsSumLast       = rmsSum; 
+   vMaxLast         = vMax;     
+   vMinLast         = vMin; 
+   periodLast       = period;
 
 
-   /* BAR GRAPHS */
-   int barLen = dcOffsetSum/numOfSamples/4094.0 * BARLEN;
-   memset(buf + BAR1_LOCATION,         '#', barLen);
-   memset(buf + BAR1_LOCATION+barLen, '-',  BARLEN - barLen);
-
-   barLen = sqrt(rmsSum/numOfSamples)/4094.0 * BARLEN;
-   memset(buf + BAR2_LOCATION,         '#', barLen);
-   memset(buf + BAR2_LOCATION+barLen, '-',  BARLEN - barLen);
-      
+   
    numOfSamples=0;
    dcOffsetSum=0;
    rmsSum = 0;
    vMax=0;
    vMin=4094;
-
+   
+   insertFloat(buf + PP_LOCATION, (vMaxLast-vMinLast)/4094.0*3.3);
    /* insertFloat(buf + DC_LOCATION,  dcSum/numOfSamples/4094.0 *3.3); */
-   insertFloat(buf +FREQ_LOCATION, 32.768/period);
+   /* insertFloat(buf +FREQ_LOCATION, 32.768/period); */
          
    // Clear the interrupt flag
    TIMER_A0->CCTL[2] &= ~(TIMER_A_CCTLN_CCIFG);
@@ -151,10 +158,15 @@ void adcInit() {
 
    ADC14->MCTL[0] |= ADC14_MCTLN_INCH_1;   // A1 ADC input select; Vref=AVCC
    ADC14->IER0 |= ADC14_IER0_IE0;          // Enable ADC conv complete interrupt
+
+   
 }
 
 // ADC14 interrupt service routine
 void ADC14_IRQHandler(void) {
+
+   P1->OUT &= ~BIT0;
+
    /* updates sample and new sample flag */
    numOfSamples++;
    numOfDCSamples++;
@@ -165,6 +177,10 @@ void ADC14_IRQHandler(void) {
    vMin = MIN(vMin, ADC14->MEM[0]);
    vMax = MAX(vMax, ADC14->MEM[0]);
    ADC14->CTL0 |= ADC14_CTL0_ENC | ADC14_CTL0_SC;
+   
+   P1->OUT |= BIT0;
+
+
 }
 
 
@@ -175,6 +191,9 @@ void main(void)
    uartInit();
    edgeTriggerInit();
    adcInit();
+
+
+   P1->DIR |= BIT0;
    
    int i;
    for(i = 0; i < 30000; i++);
@@ -208,22 +227,41 @@ void main(void)
    setOutput(buf);
 
    float f = 3.219;
-   int arrayStart=0;
+
+   float rmsAvg = 1;
+   float periodAvg = 1;
+   float dcOffsetAvg = 1;
    while(1) {
-      int i;
-      for(i = 0; i < 5000; i++);
-      /* insertFloat(buf + DC_LOCATION, dcSum/4094.0/numOfSamples *3.3); */
-      /* numOfSamples=0; */
-      /* dcSum=0; */
-      /* insertFloat(buf + RMS_LOCATION, f); */
-      /* insertFloat(buf + PP_LOCATION, f); */
-      /* if (EUSCI_A0->IFG & EUSCI_A_IFG_TXIFG) { */
-      /* 	  EUSCI_A0->TXBUF = buf[arrayStart++]; */
-      /* 	  if(buf[arrayStart] == '\0') { */
-      /* 	     arrayStart = 0; */
-      /* 	  } */
-      /* } */
- 
+
+      if(numOfSamplesLast) {
+	 dcOffsetAvg += dcOffsetSumLast/numOfSamplesLast/4094.0 *3.3;
+	 dcOffsetAvg/=2;
+	 insertFloat(buf + DCOFFSET_LOCATION, dcOffsetAvg);
+
+	 rmsAvg *= 7;
+	 rmsAvg += sqrt(1.0*rmsSumLast/numOfSamplesLast)/4094.0*3.2;
+	 rmsAvg/=8;
+	 insertFloat(buf + RMS_LOCATION, rmsAvg );
+	 /* insertFloat(buf + PP_LOCATION, (vMaxLast-vMinLast)/4094.0*3.3); */
+
+	 periodAvg *= 7;
+	 periodAvg += 32.768/periodLast;
+	 periodAvg /=8;
+	 insertFloat(buf +FREQ_LOCATION, periodAvg );
+
+	 /* BAR GRAPHS */
+	 int barLen = MIN(dcOffsetSumLast/numOfSamplesLast/4094.0 * BARLEN, BARLEN);
+	 memset(buf + BAR1_LOCATION,         '#', barLen);
+	 memset(buf + BAR1_LOCATION+barLen, '-',  BARLEN - barLen);
+
+	 barLen = MIN(rmsAvg *BARLEN/3.3, BARLEN);
+	 memset(buf + BAR2_LOCATION,         '#', barLen);
+	 memset(buf + BAR2_LOCATION+barLen, '-',  BARLEN - barLen);
+	 int i = 0;
+	 for(i=0; i< 100000; i++);
+	 numOfSamplesLast=0;
+      }
+       
    }
 }
 
