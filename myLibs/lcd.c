@@ -60,13 +60,14 @@ void LCD_Command(unsigned char CMD){
 
    LCD_nybble(CMD>>4 );		/* upper nybble */
    LCD_nybble(CMD);		/* lower nybble */
+   delay_us(100, FREQ_CUR);
 }
 void LCD_Data(unsigned char data){
    P3->OUT |= EN | RS;		/* set enable and Reg select */
    P3->OUT &= ~RW;
    LCD_nybble(data>>4 );
    LCD_nybble(data);
-   
+   delay_us(100, FREQ_CUR);   
    P3->OUT &= ~(EN | RS);
 }
 
@@ -87,7 +88,6 @@ void Write_char_LCD(uint8_t loc, char c) {
    loc = loc < 16 ? loc : loc + 0x40 - 16;
    
    LCD_Command(SET_LOC | loc);
-   
    LCD_Data(c);
 
 }

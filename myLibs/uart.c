@@ -39,7 +39,6 @@ void setOutput(char * out) {
 
 
 
-
 void uartInit() {
    // Configure UART pins
    P1->SEL0 |= BIT2 | BIT3;                // set 2-UART pin as secondary function
