@@ -8,13 +8,14 @@
  * main.c
  */
 
-#define DCOFFSET_LOCATION 42
-#define RMS_LOCATION 56
-#define PP_LOCATION 73
-#define FREQ_LOCATION 98
-#define DC_LOCATION 123
-#define BAR1_LOCATION 139
-#define BAR2_LOCATION 383
+#define DCOFFSET_LOCATION 43
+#define RMS_LOCATION 57
+#define PP_LOCATION 74
+#define FREQ_LOCATION 99
+#define DC_LOCATION 124
+#define BAR1_LOCATION 140
+#define BAR2_LOCATION 384
+#define BAR3_LOCATION 623
 #define BARLEN 50
 volatile uint32_t period = 95;
 volatile uint32_t dcSum  = 0;
@@ -64,26 +65,45 @@ void edgeTriggerInit() {
       TIMER_A_CTL_MC_2 |              // Start timer in continuous mode
       TIMER_A_CTL_CLR;                // clear TA0R
 
+
+
    NVIC->ISER[0] = 1 << ((TA0_0_IRQn) & 31);
    NVIC->ISER[0] = 1 << ((TA0_N_IRQn) & 31);
 }
 
 
 // Timer A0_0 interrupt service routine
-void TA0_0_IRQHandler(void) {
+void TA0_0_IRQHandler(void) {	/* ISR for 1ms update of DC Values */
    // Clear the compare interrupt flag
    TIMER_A0->CCTL[0] &= ~TIMER_A_CCTLN_CCIFG;
    insertFloat(buf + DC_LOCATION,  dcSum/numOfDCSamples/4094.0 *3.3);
+
+   int barLen = dcSum/numOfDCSamples/4094.0 * BARLEN;
+   memset(buf + BAR3_LOCATION,         '#', barLen);
+   memset(buf + BAR3_LOCATION+barLen, '-',  BARLEN - barLen);
+
    dcSum=0;
    numOfDCSamples=0;
 
+   
    TIMER_A0->CCR[0] += 33;
+
+   /* check if DC by seeing if AC has been updated in a while */
+   if(numOfSamples > 200000) {
+      memset(buf+DCOFFSET_LOCATION, '-', 5);
+      memset(buf+RMS_LOCATION, '-', 5);
+      memset(buf+PP_LOCATION, '-', 5);
+      memset(buf+FREQ_LOCATION, '-', 5);
+      memset(buf + BAR1_LOCATION, '~', BARLEN);
+      memset(buf + BAR2_LOCATION, '~', BARLEN);
+   }
 }
 
 
 
 void TA0_N_IRQHandler(void) {
    static uint16_t lastClk=0;
+
    if(TIMER_A0->CCR[2] > lastClk) {
       period = TIMER_A0->CCR[2]-lastClk;
    }
@@ -161,13 +181,13 @@ void main(void)
    ADC14->CTL0 |= ADC14_CTL0_ENC | ADC14_CTL0_SC;
    buf = malloc(800);
    strcpy(buf,
-	  LOC(3,20) "DC OFFSET" LOC(3,42) "RMS"        LOC(3,62)"PP" /* ends at 31 */
+	  LOC(3,20) "DC Average" LOC(3,42) "RMS"        LOC(3,62)"PP" /* ends at 31 */
 	  LOC(4,20) "_#___ V" LOC(4,40) "_#___ Vrms" LOC(4,60)"_#___ Vpp"
 	  LOC(3,5) "FREQ"     
 	  LOC(4,4) "____  kHz"
 
-	  LOC(14,5) "DC"     
-	  LOC(15,4) "____  Vdc"
+	  LOC(16,5) "DC"     
+	  LOC(17,4) "____  Vdc"
 
 	  LOC(7,3)  "|!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!| DC Offset"
 	  LOC(8,3)  "||         |       |        |        |       |    '|"
@@ -177,6 +197,12 @@ void main(void)
 
 	  LOC(6,3)  "|==================================================|"
 	  LOC(12,3) "|==================================================|"
+
+	  LOC(19,3) "|==================================================|"
+	  LOC(20,3) "|!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!| DC"
+	  LOC(21,3) "||         |       |        |        |       |    '|"
+	  LOC(22,3) "|0        0.6     1.2      1.8      2.4     3.0 3.3|"
+	  LOC(23,3) "|==================================================|"
 	  
 	  );
    setOutput(buf);

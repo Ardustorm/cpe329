@@ -7,7 +7,7 @@ static int num = 0;
 
 
 static volatile int arrayStart=0;
-static volatile char * outArray = CLR_SCREEN /* INVIS_CURSOR */;
+static volatile char * outArray = CLR_SCREEN INVIS_CURSOR;
 /* LOC(5,20) "DC"     LOC(5,40) "RMS"    LOC(5,60)"PP"; */
 
 
