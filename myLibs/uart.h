@@ -13,9 +13,7 @@
 
 #define CLR_SCREEN "\x1B[2J"
 #define INVIS_CURSOR"\x1B[?25l"
-#define LOC(x,y) "\x1B["#x";"#y"f"
-
-
+#define LOC(x,y) "\x1B["#x";"#y"f" /* I'm proud of this */
 
 void uartInit();
 

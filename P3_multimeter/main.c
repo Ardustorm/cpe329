@@ -4,10 +4,8 @@
 #include <math.h>
 #define MAX(a,b) (a>b)? a:b
 #define MIN(a,b) (a<b)? a:b
-/**
- * main.c
- */
 
+/* Locations of where each field is located in the buffer */
 #define DCOFFSET_LOCATION 43
 #define RMS_LOCATION 57
 #define PP_LOCATION 74
@@ -17,6 +15,7 @@
 #define BAR2_LOCATION 384
 #define BAR3_LOCATION 623
 #define BARLEN 50
+
 volatile uint32_t period = 95;
 volatile uint32_t dcSum  = 0;
 volatile uint32_t dcOffsetSum  = 0;
@@ -24,17 +23,17 @@ volatile uint64_t rmsSum = 0;
 volatile uint16_t vMin   = 0;
 volatile uint16_t vMax   = 0;
 volatile uint32_t numOfSamples = 0;
-volatile uint32_t numOfDCSamples = 0;
+volatile uint32_t numOfDCSamples = 0; /* used for 1ms timing */
 
-
+/* values of last measurements, used for calculations */
 volatile uint32_t dcOffsetSumLast  = 0;
 volatile uint64_t rmsSumLast = 0;
 volatile uint16_t vMinLast   = 0;
 volatile uint16_t vMaxLast   = 0;
 volatile uint32_t numOfSamplesLast = 0;
 volatile uint32_t periodLast=0;
-volatile char * buf;
 
+volatile char * buf;
 
 
 void insertFloat(char * loc, float val) {
@@ -54,13 +53,11 @@ void insertFloat(char * loc, float val) {
    }
 }
 
-
-
 void edgeTriggerInit() {
-   P2->SEL0 |= BIT5;                       // TA0.CCI2A input capture pin, second function
+   P2->SEL0 |= BIT5;        // TA0.CCI2A input capture pin, second function
    P2->DIR &= ~BIT5;
 
-   /* setup for 1ms timer */
+   /* setup for 1ms timer for DC */
    TIMER_A0->CCTL[0] = TIMER_A_CCTLN_CCIE; // TACCR0 interrupt enabled
    TIMER_A0->CCR[0] = 32763;
    
@@ -75,8 +72,7 @@ void edgeTriggerInit() {
       TIMER_A_CTL_MC_2 |              // Start timer in continuous mode
       TIMER_A_CTL_CLR;                // clear TA0R
 
-
-
+   /* enable interrupts for capture mode and 1ms timer */
    NVIC->ISER[0] = 1 << ((TA0_0_IRQn) & 31);
    NVIC->ISER[0] = 1 << ((TA0_N_IRQn) & 31);
 }
@@ -94,11 +90,11 @@ void TA0_0_IRQHandler(void) {	/* ISR for 1ms update of DC Values */
 
    dcSum=0;
    numOfDCSamples=0;
-
    
-   TIMER_A0->CCR[0] += 33;
+   TIMER_A0->CCR[0] += 33;	/* increment timer by 1 ms */
 
-   /* check if DC by seeing if AC has been updated in a while */
+   /* check if DC by seeing if AC has been updated in a while,
+      if so, hide ac fields*/
    if(numOfSamples > 200000) {
       memset(buf+DCOFFSET_LOCATION, '-', 5);
       memset(buf+RMS_LOCATION, '-', 5);
@@ -110,7 +106,7 @@ void TA0_0_IRQHandler(void) {	/* ISR for 1ms update of DC Values */
 }
 
 
-
+/* ISR for end of a period (capture mode) */
 void TA0_N_IRQHandler(void) {
    static uint16_t lastClk=0;
 
@@ -118,7 +114,6 @@ void TA0_N_IRQHandler(void) {
       period = TIMER_A0->CCR[2]-lastClk;
    }
    lastClk= TIMER_A0->CCR[2];
-
    
    numOfSamplesLast = numOfSamples;
    dcOffsetSumLast  = dcOffsetSum;
@@ -126,8 +121,6 @@ void TA0_N_IRQHandler(void) {
    vMaxLast         = vMax;     
    vMinLast         = vMin; 
    periodLast       = period;
-
-
    
    numOfSamples=0;
    dcOffsetSum=0;
@@ -136,8 +129,6 @@ void TA0_N_IRQHandler(void) {
    vMin=4094;
    
    insertFloat(buf + PP_LOCATION, (vMaxLast-vMinLast)/4094.0*3.3);
-   /* insertFloat(buf + DC_LOCATION,  dcSum/numOfSamples/4094.0 *3.3); */
-   /* insertFloat(buf +FREQ_LOCATION, 32.768/period); */
          
    // Clear the interrupt flag
    TIMER_A0->CCTL[2] &= ~(TIMER_A_CCTLN_CCIFG);
@@ -148,7 +139,6 @@ void adcInit() {
    P5->SEL1 |= BIT4;                       // Configure P5.4 for ADC
    P5->SEL0 |= BIT4;
 
-
    // Enable ADC interrupt in NVIC module
    NVIC->ISER[0] = 1 << ((ADC14_IRQn) & 31);
 
@@ -158,29 +148,20 @@ void adcInit() {
 
    ADC14->MCTL[0] |= ADC14_MCTLN_INCH_1;   // A1 ADC input select; Vref=AVCC
    ADC14->IER0 |= ADC14_IER0_IE0;          // Enable ADC conv complete interrupt
-
-   
 }
 
-// ADC14 interrupt service routine
+// ADC14 interrupt service routine, runs when a sample is ready
 void ADC14_IRQHandler(void) {
-
-   P1->OUT &= ~BIT0;
-
    /* updates sample and new sample flag */
    numOfSamples++;
    numOfDCSamples++;
-   /* sample = ADC14->MEM[0]; */
+
    dcSum  += ADC14->MEM[0];
    dcOffsetSum  += ADC14->MEM[0];
    rmsSum += ADC14->MEM[0] * ADC14->MEM[0];
    vMin = MIN(vMin, ADC14->MEM[0]);
    vMax = MAX(vMax, ADC14->MEM[0]);
    ADC14->CTL0 |= ADC14_CTL0_ENC | ADC14_CTL0_SC;
-   
-   P1->OUT |= BIT0;
-
-
 }
 
 
@@ -196,8 +177,17 @@ void main(void)
    P1->DIR |= BIT0;
    
    int i;
-   for(i = 0; i < 30000; i++);
-   ADC14->CTL0 |= ADC14_CTL0_ENC | ADC14_CTL0_SC;
+   for(i = 0; i < 30000; i++);	/* delay while things settle */
+   ADC14->CTL0 |= ADC14_CTL0_ENC | ADC14_CTL0_SC; /* start adc */
+   /* 
+      This method could use some improvement. The general principle is
+      that the buffer is always being written to the screen so other
+      functions can just memset or update the buffer without waiting for 
+      the serial. This would be better implemented as a function
+      so as to not need the location pound defines, or the weird placement
+      of things as to avoid changing said pound defines.
+    */
+   
    buf = malloc(800);
    strcpy(buf,
 	  LOC(3,20) "DC Average" LOC(3,42) "RMS"        LOC(3,62)"PP" /* ends at 31 */
@@ -224,16 +214,19 @@ void main(void)
 	  LOC(23,3) "|==================================================|"
 	  
 	  );
-   setOutput(buf);
+   setOutput(buf);		/* tells uart which string to print */
 
-   float f = 3.219;
 
    float rmsAvg = 1;
    float periodAvg = 1;
    float dcOffsetAvg = 1;
+   int barLen=0;
    while(1) {
-
-      if(numOfSamplesLast) {
+      /* 
+	 The += and /=2 etc is for exponential averaging to help
+	 smooth out the numbers.
+       */
+      if(numOfSamplesLast) {	/* checks to make sure new info is avalible */
 	 dcOffsetAvg += dcOffsetSumLast/numOfSamplesLast/4094.0 *3.3;
 	 dcOffsetAvg/=2;
 	 insertFloat(buf + DCOFFSET_LOCATION, dcOffsetAvg);
@@ -242,7 +235,6 @@ void main(void)
 	 rmsAvg += sqrt(1.0*rmsSumLast/numOfSamplesLast)/4094.0*3.2;
 	 rmsAvg/=8;
 	 insertFloat(buf + RMS_LOCATION, rmsAvg );
-	 /* insertFloat(buf + PP_LOCATION, (vMaxLast-vMinLast)/4094.0*3.3); */
 
 	 periodAvg *= 7;
 	 periodAvg += 32.768/periodLast;
@@ -250,7 +242,7 @@ void main(void)
 	 insertFloat(buf +FREQ_LOCATION, periodAvg );
 
 	 /* BAR GRAPHS */
-	 int barLen = MIN(dcOffsetSumLast/numOfSamplesLast/4094.0 * BARLEN, BARLEN);
+	 barLen = MIN(dcOffsetSumLast/numOfSamplesLast/4094.0 * BARLEN, BARLEN);
 	 memset(buf + BAR1_LOCATION,         '#', barLen);
 	 memset(buf + BAR1_LOCATION+barLen, '-',  BARLEN - barLen);
 
@@ -258,14 +250,11 @@ void main(void)
 	 memset(buf + BAR2_LOCATION,         '#', barLen);
 	 memset(buf + BAR2_LOCATION+barLen, '-',  BARLEN - barLen);
 	 int i = 0;
-	 for(i=0; i< 100000; i++);
+	 for(i=0; i< 100000; i++); /* short delay */
 	 numOfSamplesLast=0;
       }
        
    }
 }
 
-
-
-   
 
