@@ -1,6 +1,6 @@
 #include "msp.h"
 #include "myLibs/delay.h"
-#include "lcd.h"
+#include "myLibs/lcd.h"
 
 #define FREQ_CUR FREQ_3MHz
 

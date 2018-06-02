@@ -1,30 +1,14 @@
-#include "msp.h"
-#include "myLibs/delay.h"
-#include "waveforms.h"
-#include "myLibs/lcd.h"
-#include "myLibs/keypad.h"
-#include <math.h>
-#include <stdlib.h>
 /**
  * main.c
  * P1.5  --  Sclk
  * P1.6  --  MOSI
- * P1.7  --  MISO
  * P4.1  --  CS for DAC
 
  */
+#include "waveforms.h"
 
-#define CUR_CLOCK_FREQ FREQ_12MHz
-
-#define FREQ_CUR FREQ_12MHz
-
-
-#define SQUARE_WT 0
-#define SAWTOOTH_WT 1
-#define SINE_WT 2
-#define ARB_WT 3
 volatile int waveFreq = 1;
-volatile int waveType = SQUARE_WT;		/* Square:0,  Sawtooth:1, Sine:2, inverseSaw:3 */
+volatile int waveType = SQUARE_WT;
 volatile int waveDuty = 5;		/* in perdeci */
 
 int key;
@@ -37,7 +21,7 @@ volatile void main(void)
    
    WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;		// stop watchdog timer
 
-   set_DCO(CUR_CLOCK_FREQ);
+   set_DCO(FREQ_CUR);
    setupDAC();
    keypadInit();
    LCD_Init();
@@ -56,26 +40,12 @@ volatile void main(void)
    
    Clear_LCD();   
    while(1) {
-
-      /* Write_str_LCD(0,"Freq: "); */
-      /* Write_char_LCD(6,'0'+waveFreq); */
-      /* Write_str_LCD(7,"00 Hz"); */
-
-      /* if(waveType == SQUARE_WT) { /\* Display Duty cycle *\/ */
-      /* 	 Write_char_LCD(29, '0'+waveDuty); */
-      /* 	 Write_str_LCD(30, "0%"); */
-      /* } */
-
       key=getKey();
       updateTypeAndFreq(key);
       
-
       /* wait till the key is released */
       while(scanKeypad() != -1);
-
    }
-
-	
 }
 
 
@@ -94,7 +64,6 @@ volatile void TA0_0_IRQHandler(void) {
       	 setDAC( index);
       }
       skip ^= 0x1;
-      
       TIMER_A0->CCR[0] +=  30000 / waveFreq *(index? ( waveDuty/5.0) :
 					      ((10-waveDuty)/5.0));
    }
@@ -195,11 +164,7 @@ void generateArrays() {
       SQUARE_WAVE[i] = (i<WAVE_LEN/2)? 0: peak;
       SIN_WAVE[i] = (int) (peak/2 + peak/2 * sin(i* 2* PI/WAVE_LEN));
       SAW_WAVE[i] = (int) (i*peak/WAVE_LEN);
-
       TRI_WAVE[i] = (int)(peak*(1-2.0/WAVE_LEN*abs(i-WAVE_LEN/2)));
-
-      //(int) (i-2/WAVE_LEN* abs((int)(i-WAVE_LEN/2)));
-      /* NOISE_WAVE[i] = random() * peak; */
    }
 
    WAVES[0] = SQUARE_WAVE;

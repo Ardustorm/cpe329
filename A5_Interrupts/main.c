@@ -102,8 +102,8 @@ int main(void) {
 
 
    /* STUFF for 20 sec */
-   /* TIMER_A0->CTL |= BIT7 | BIT6; /\* divide by 8 *\/ */
-   /* TIMER_A0->EX0 |= 0x7;	 /\* divide by 8 *\/ */
+   TIMER_A0->CTL |= BIT7 | BIT6; /* divide by 8 */
+   TIMER_A0->EX0 |= 0x7;	 /* divide by 8 */
 
    /* CS->CTL1 |= CS_CTL1_DIVA__128; */
 
@@ -125,8 +125,8 @@ int main(void) {
 
 
 
-/* void TA0_0_IRQHandler_2bitcounter(void) { */
-void TA0_0_IRQHandler(void) {
+void TA0_0_IRQHandler_2bitcounter(void) {
+/* void TA0_0_IRQHandler(void) { */
    TIMER_A0->CCTL[0] &= ~TIMER_A_CCTLN_CCIFG;
 
 
@@ -139,8 +139,8 @@ void TA0_0_IRQHandler(void) {
    count++;
 }
 
-void TA0_0_IRQHandler_20SEC(void) {
-/* void TA0_0_IRQHandler(void) { */
+/* void TA0_0_IRQHandler_20SEC(void) { */
+void TA0_0_IRQHandler(void) {
    TIMER_A0->CCTL[0] &= ~TIMER_A_CCTLN_CCIFG;
 
 
