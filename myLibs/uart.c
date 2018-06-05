@@ -72,30 +72,30 @@ void EUSCIA0_IRQHandler(void) {
    if (EUSCI_A0->IFG & EUSCI_A_IFG_RXIFG) {
       EUSCI_A0->IFG &=~ EUSCI_A_IFG_RXIFG;
 	    
-      // Check if the TX buffer is empty first
-      while(!(EUSCI_A0->IFG & EUSCI_A_IFG_TXIFG));
+      /* // Check if the TX buffer is empty first */
+      /* while(!(EUSCI_A0->IFG & EUSCI_A_IFG_TXIFG)); */
 
-      /* check if number */
-      if( '0' <= EUSCI_A0->RXBUF && EUSCI_A0->RXBUF <= '9') {
-   	 // Echo the received character back
-   	 EUSCI_A0->TXBUF = EUSCI_A0->RXBUF;
-   	 num = 10*num + (EUSCI_A0->RXBUF - '0');
+      /* /\* check if number *\/ */
+      /* if( '0' <= EUSCI_A0->RXBUF && EUSCI_A0->RXBUF <= '9') { */
+      /* 	 // Echo the received character back */
+      /* 	 EUSCI_A0->TXBUF = EUSCI_A0->RXBUF; */
+      /* 	 num = 10*num + (EUSCI_A0->RXBUF - '0'); */
 	 
-      } else if(EUSCI_A0->RXBUF == '\r') {
-   	 EUSCI_A0->TXBUF = '\n';
-   	 EUSCI_A0->TXBUF = '\r';
-   	 uartFlag = 1;
-      }
+      /* } else if(EUSCI_A0->RXBUF == '\r') { */
+      /* 	 EUSCI_A0->TXBUF = '\n'; */
+      /* 	 EUSCI_A0->TXBUF = '\r'; */
+      /* 	 uartFlag = 1; */
+      /* } */
    } else if (EUSCI_A0->IFG & EUSCI_A_IFG_TXIFG) {
       EUSCI_A0->IFG &=~ EUSCI_A_IFG_TXIFG;
-      /* finished sending */
-      if(outArray[arrayStart] == '\0') {
-	 arrayStart = 0;
+      /* /\* finished sending *\/ */
+      /* if(outArray[arrayStart] == '\0') { */
+      /* 	 arrayStart = 0; */
 
-      }
+      /* } */
 
-      EUSCI_A0->TXBUF = outArray[arrayStart++];
-      /* arrayStart = (arrayStart+1) % ARRAY_SIZE; */
+      /* EUSCI_A0->TXBUF = outArray[arrayStart++]; */
+      /* /\* arrayStart = (arrayStart+1) % ARRAY_SIZE; *\/ */
    }
    
 }

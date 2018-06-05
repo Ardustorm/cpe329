@@ -6,13 +6,25 @@
  * main.c
  */
 
+
+/* 
+264000 2381 g
+20500  184
+
+zero ~ -50 -- 100
+
+2490 22
+23730  212
+
+ */
+
 int32_t offset=0;
 
-void printNum(int num) {
-   char buf[255];
+void printNum(float num) {
+   char buf[32];
    char *c;
 
-   sprintf(buf, "%i\r\n", num);
+   sprintf(buf, "%f\r\n", num);
    
    c= buf;
    while( *c != '\0') {
@@ -26,11 +38,25 @@ void printNum(int num) {
 }
 
 void scaleInit() {
-   P6->DIR |=  BIT0;		/* Clk */
-   P6->DIR &= ~BIT1;		/* Data IN */
-   P6->REN |=  BIT1;		/* Data IN */
+   /* P6->DIR |=  BIT0;		/\* Clk *\/ */
+   /* P6->DIR &= ~BIT1;		/\* Data IN *\/ */
+   /* P6->REN |=  BIT1;		/\* Data IN *\/ */
 
-   P6->OUT &=  ~BIT0;
+   P10->DIR |=  BIT0;		/* Clk */
+   P10->DIR &= ~BIT2;		/* Data IN */
+   P10->REN |=  BIT2;		/* Data IN */
+
+   P10->OUT &=  ~BIT0;
+
+   /* vcc */
+   P7->DIR |= BIT6;
+   P7->OUT |= BIT6;
+   /* gnd */
+   P10->DIR |=  BIT4;
+   P10->OUT &= ~BIT4;
+      
+   int i;
+   for(i=0; i<100000; i++);
 
    offset=getVals(10);
 
@@ -43,23 +69,23 @@ int getVal() {
    uint8_t  i;
    /* ADDO=1; */
 
-   P6->OUT &=  ~BIT0;		/*    ADSK=0; */
+   P10->OUT &=  ~BIT0;		/*    ADSK=0; */
 
    Count=0;
    
    /* wait for DOUT to be low */
-   while( P6->IN & BIT1);	/*    while(ADDO); */
+   while( P10->IN & BIT2);	/*    while(ADDO); */
 
    for (i=0;i<24;i++){
-      P6->OUT |=  BIT0;		/*    ADSK=1; */
+      P10->OUT |=  BIT0;		/*    ADSK=1; */
       Count=Count<<1;
-      P6->OUT &=  ~BIT0;		/* ADSK=0; */
-      if( P6->IN & BIT1) Count++;      	/* if(ADDO) Count++; */
+      P10->OUT &=  ~BIT0;		/* ADSK=0; */
+      if( P10->IN & BIT2) Count++;      	/* if(ADDO) Count++; */
    }
-   P6->OUT |=  BIT0;		/*    ADSK=1; */
+   P10->OUT |=  BIT0;		/*    ADSK=1; */
 
    Count=Count^0x800000;
-   P6->OUT &=  ~BIT0;		/* ADSK=0; */
+   P10->OUT &=  ~BIT0;		/* ADSK=0; */
    return(Count - offset);
    
 }
@@ -86,11 +112,12 @@ void main(void) {
    uartInit();
    scaleInit();
    int index = 1;
+
    while(1) {
       index += 1234;
       /* EUSCI_A0->TXBUF = '.'; */
 
-      printNum(getSmoothVal());
+      printNum( 0.00902 * getSmoothVal());
       
       uint32_t i;
       
